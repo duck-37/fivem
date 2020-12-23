@@ -188,7 +188,7 @@ enet_protocol_remove_sent_unreliable_commands (ENetPeer * peer)
            }
         }
 
-		fx::generic_object_pool<ENetOutgoingCommand>::destruct(outgoingCommand);
+		fx::object_pool<ENetOutgoingCommand>::destruct(outgoingCommand);
     } while (! enet_list_empty (& peer -> sentUnreliableCommands));
 
     if (peer -> state == ENET_PEER_STATE_DISCONNECT_LATER &&
@@ -272,7 +272,7 @@ enet_protocol_remove_sent_reliable_command (ENetPeer * peer, enet_uint16 reliabl
        }
     }
 
-	fx::generic_object_pool<ENetOutgoingCommand>::destruct(outgoingCommand);
+	fx::object_pool<ENetOutgoingCommand>::destruct(outgoingCommand);
 
     if (enet_list_empty (& peer -> sentReliableCommands))
       return commandNumber;
@@ -1320,7 +1320,7 @@ enet_protocol_send_acknowledgements (ENetHost * host, ENetPeer * peer)
          enet_protocol_dispatch_state (host, peer, ENET_PEER_STATE_ZOMBIE);
 
        enet_list_remove (& acknowledgement -> acknowledgementList);
-	   fx::generic_object_pool<ENetAcknowledgement>::destruct(acknowledgement);
+	   fx::object_pool<ENetAcknowledgement>::destruct(acknowledgement);
 
        ++ command;
        ++ buffer;
@@ -1377,7 +1377,7 @@ enet_protocol_send_unreliable_outgoing_commands (ENetHost * host, ENetPeer * pee
                   enet_packet_destroy (outgoingCommand -> packet);
          
                 enet_list_remove (& outgoingCommand -> outgoingCommandList);
-				fx::generic_object_pool<ENetOutgoingCommand>::destruct(outgoingCommand);
+				fx::object_pool<ENetOutgoingCommand>::destruct(outgoingCommand);
 
                 if (currentCommand == enet_list_end (& peer -> outgoingUnreliableCommands))
                   break;
@@ -1415,7 +1415,7 @@ enet_protocol_send_unreliable_outgoing_commands (ENetHost * host, ENetPeer * pee
           enet_list_insert (enet_list_end (& peer -> sentUnreliableCommands), outgoingCommand);
        }
 	   else
-		   fx::generic_object_pool<ENetOutgoingCommand>::destruct(outgoingCommand);
+		   fx::object_pool<ENetOutgoingCommand>::destruct(outgoingCommand);
 
        ++ command;
        ++ buffer;

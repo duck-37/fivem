@@ -325,10 +325,11 @@ namespace fx
 
 			auto processSendList = [this]()
 			{
-				while (auto *packet = m_netSendList.pop(&fx::GameServerPacket::queueKey))
+				while (auto* packet_tail = m_netSendList.dequeue())
 				{
+					auto* packet = packet_tail->get(&GameServerPacket::queueKey);
 					m_net->SendPacket(packet->peer, packet->channel, packet->buffer, packet->type);
-					m_packetPool.destruct(packet);
+					PacketPoolT::destruct(packet);
 				}
 			};
 			
@@ -599,8 +600,8 @@ namespace fx
 		}
 
 
-		GameServerPacket* packet = m_packetPool.construct(peer, channel, buffer, type);
-		m_netSendList.push(&packet->queueKey);
+		GameServerPacket* packet = PacketPoolT::construct(peer, channel, buffer, type);
+		m_netSendList.enqueue(&packet->queueKey);
 	}
 
 	void GameServer::Run()

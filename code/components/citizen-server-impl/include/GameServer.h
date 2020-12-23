@@ -35,7 +35,7 @@ namespace fx
 		net::Buffer buffer;
 		NetPacketType type;
 
-		detached_queue_key<GameServerPacket> queueKey;
+		intrusive_queue_key<GameServerPacket> queueKey;
 
 		GameServerPacket(int peer, int channel, const net::Buffer& buffer, NetPacketType type) : peer(peer), channel(channel), buffer(buffer), type(type)
 		{
@@ -43,8 +43,7 @@ namespace fx
 		}
 	};
 
-	inline object_pool<GameServerPacket> m_packetPool;
-
+	using PacketPoolT = object_pool<GameServerPacket, 512 * 256>;
 	class GameServer : public fwRefCountable, public IAttached<ServerInstanceBase>, public ComponentHolderImpl<GameServer>
 	{
 	public:
@@ -305,7 +304,7 @@ namespace fx
 
 		std::unique_ptr<CallbackListBase> m_syncThreadCallbacks;
 
-		detached_mpsc_queue<GameServerPacket> m_netSendList;
+		intrusive_mpsc_queue<GameServerPacket> m_netSendList;
 	};
 
 	using TPacketTypeHandler = std::function<void(const fx::ClientSharedPtr& client, net::Buffer& packet)>;

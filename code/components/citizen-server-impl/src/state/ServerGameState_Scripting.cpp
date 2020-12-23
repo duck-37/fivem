@@ -142,7 +142,7 @@ static InitFunction initFunction([]()
 	fx::ScriptEngine::RegisterNativeHandler("GET_ENTITY_COORDS", makeEntityFunction([](fx::ScriptContext& context, const fx::sync::SyncEntityPtr& entity)
 	{
 		float position[3];
-		entity->syncTree->GetPosition(position);
+		(*entity->syncTree)->GetPosition(position);
 
 		scrVector resultVec = { 0 };
 		resultVec.x = position[0];
@@ -156,7 +156,7 @@ static InitFunction initFunction([]()
 	{
 		scrVector resultVec = { 0 };
 
-		auto v = entity->syncTree->GetVelocity();
+		auto v = (*entity->syncTree)->GetVelocity();
 
 		if (v)
 		{
@@ -172,7 +172,7 @@ static InitFunction initFunction([]()
 
 	fx::ScriptEngine::RegisterNativeHandler("GET_ENTITY_ROTATION_VELOCITY", makeEntityFunction([](fx::ScriptContext& context, const fx::sync::SyncEntityPtr& entity)
 	{
-		auto av = entity->syncTree->GetAngVelocity();
+		auto av = (*entity->syncTree)->GetAngVelocity();
 
 		scrVector resultVec = { 0 };
 
@@ -195,7 +195,7 @@ static InitFunction initFunction([]()
 			resultVec.x = 0.0f;
 			resultVec.y = 0.0f;
 
-			auto pn = entity->syncTree->GetPedOrientation();
+			auto pn = (*entity->syncTree)->GetPedOrientation();
 
 			if (pn)
 			{
@@ -204,7 +204,7 @@ static InitFunction initFunction([]()
 		}
 		else
 		{
-			auto en = entity->syncTree->GetEntityOrientation();
+			auto en = (*entity->syncTree)->GetEntityOrientation();
 
 			if (en)
 			{
@@ -237,7 +237,7 @@ static InitFunction initFunction([]()
 
 		if (entity->type == fx::sync::NetObjEntityType::Player || entity->type == fx::sync::NetObjEntityType::Ped)
 		{
-			auto pn = entity->syncTree->GetPedOrientation();
+			auto pn = (*entity->syncTree)->GetPedOrientation();
 
 			if (pn)
 			{
@@ -246,7 +246,7 @@ static InitFunction initFunction([]()
 		}
 		else
 		{
-			auto en = entity->syncTree->GetEntityOrientation();
+			auto en = (*entity->syncTree)->GetEntityOrientation();
 
 			if (en)
 			{
@@ -272,7 +272,7 @@ static InitFunction initFunction([]()
 	fx::ScriptEngine::RegisterNativeHandler("GET_ENTITY_POPULATION_TYPE", makeEntityFunction([](fx::ScriptContext& context, const fx::sync::SyncEntityPtr& entity)
 	{
 		fx::sync::ePopType popType = fx::sync::POPTYPE_UNKNOWN;
-		entity->syncTree->GetPopulationType(&popType);
+		(*entity->syncTree)->GetPopulationType(&popType);
 
 		return popType;
 	}));
@@ -280,7 +280,7 @@ static InitFunction initFunction([]()
 	fx::ScriptEngine::RegisterNativeHandler("GET_ENTITY_MODEL", makeEntityFunction([](fx::ScriptContext& context, const fx::sync::SyncEntityPtr& entity)
 	{
 		uint32_t model = 0;
-		entity->syncTree->GetModelHash(&model);
+		(*entity->syncTree)->GetModelHash(&model);
 
 		return model;
 	}));
@@ -288,7 +288,7 @@ static InitFunction initFunction([]()
 	fx::ScriptEngine::RegisterNativeHandler("GET_ENTITY_SCRIPT", makeEntityFunction([](fx::ScriptContext& context, const fx::sync::SyncEntityPtr& entity)
 	{
 		uint32_t script = 0;
-		if (entity->syncTree->GetScriptHash(&script))
+		if ((*entity->syncTree)->GetScriptHash(&script))
 		{
 			static std::string scriptName;
 			scriptName.clear();
@@ -385,7 +385,7 @@ static InitFunction initFunction([]()
 
 	fx::ScriptEngine::RegisterNativeHandler("GET_VEHICLE_RADIO_STATION_INDEX", makeEntityFunction([](fx::ScriptContext& context, const fx::sync::SyncEntityPtr& entity)
 	{
-		auto vn = entity->syncTree->GetVehicleGameState();
+		auto vn = (*entity->syncTree)->GetVehicleGameState();
 
 		return vn ? vn->radioStation : 0;
 	}));
@@ -394,7 +394,7 @@ static InitFunction initFunction([]()
 	{
 		if (context.GetArgumentCount() > 2)
 		{
-			auto vn = entity->syncTree->GetVehicleGameState();
+			auto vn = (*entity->syncTree)->GetVehicleGameState();
 
 			*context.GetArgument<int*>(1) = vn ? vn->lightsOn : false;
 			*context.GetArgument<int*>(2) = vn ? vn->highbeamsOn : false;
@@ -405,21 +405,21 @@ static InitFunction initFunction([]()
 
 	fx::ScriptEngine::RegisterNativeHandler("GET_IS_VEHICLE_ENGINE_RUNNING", makeEntityFunction([](fx::ScriptContext& context, const fx::sync::SyncEntityPtr& entity)
 	{
-		auto vn = entity->syncTree->GetVehicleGameState();
+		auto vn = (*entity->syncTree)->GetVehicleGameState();
 
 		return vn ? vn->isEngineOn : false;
 	}));
 
 	fx::ScriptEngine::RegisterNativeHandler("IS_VEHICLE_ENGINE_STARTING", makeEntityFunction([](fx::ScriptContext& context, const fx::sync::SyncEntityPtr& entity)
 	{
-		auto vn = entity->syncTree->GetVehicleGameState();
+		auto vn = (*entity->syncTree)->GetVehicleGameState();
 
 		return vn ? vn->isEngineStarting : false;
 	}));
 
 	fx::ScriptEngine::RegisterNativeHandler("GET_VEHICLE_HANDBRAKE", makeEntityFunction([](fx::ScriptContext& context, const fx::sync::SyncEntityPtr& entity)
 	{
-		auto vn = entity->syncTree->GetVehicleGameState();
+		auto vn = (*entity->syncTree)->GetVehicleGameState();
 
 		return vn ? vn->handbrake : false;
 	}));
@@ -428,7 +428,7 @@ static InitFunction initFunction([]()
 	{
 		int headlightsColour = 0;
 
-		auto vn = entity->syncTree->GetVehicleGameState();
+		auto vn = (*entity->syncTree)->GetVehicleGameState();
 
 		if (vn)
 		{
@@ -443,14 +443,14 @@ static InitFunction initFunction([]()
 
 	fx::ScriptEngine::RegisterNativeHandler("IS_VEHICLE_SIREN_ON", makeEntityFunction([](fx::ScriptContext& context, const fx::sync::SyncEntityPtr& entity)
 	{
-		auto vn = entity->syncTree->GetVehicleGameState();
+		auto vn = (*entity->syncTree)->GetVehicleGameState();
 
 		return vn ? vn->sirenOn : 0;
 	}));
 
 	fx::ScriptEngine::RegisterNativeHandler("GET_VEHICLE_DOOR_STATUS", makeEntityFunction([](fx::ScriptContext& context, const fx::sync::SyncEntityPtr& entity)
 	{
-		auto vn = entity->syncTree->GetVehicleGameState();
+		auto vn = (*entity->syncTree)->GetVehicleGameState();
 
 		if (!vn)
 		{
@@ -470,14 +470,14 @@ static InitFunction initFunction([]()
 
 	fx::ScriptEngine::RegisterNativeHandler("GET_VEHICLE_DOOR_LOCK_STATUS", makeEntityFunction([](fx::ScriptContext& context, const fx::sync::SyncEntityPtr& entity)
 	{
-		auto vn = entity->syncTree->GetVehicleGameState();
+		auto vn = (*entity->syncTree)->GetVehicleGameState();
 
 		return vn ? vn->lockStatus : 0;
 	}));
 
 	fx::ScriptEngine::RegisterNativeHandler("GET_VEHICLE_DOORS_LOCKED_FOR_PLAYER", makeEntityFunction([](fx::ScriptContext& context, const fx::sync::SyncEntityPtr& entity)
 	{
-		auto vn = entity->syncTree->GetVehicleGameState();
+		auto vn = (*entity->syncTree)->GetVehicleGameState();
 
 		if (!vn)
 		{
@@ -502,21 +502,21 @@ static InitFunction initFunction([]()
 
 	fx::ScriptEngine::RegisterNativeHandler("GET_VEHICLE_ENGINE_HEALTH", makeEntityFunction([](fx::ScriptContext& context, const fx::sync::SyncEntityPtr& entity)
 	{
-		auto vn = entity->syncTree->GetVehicleHealth();
+		auto vn = (*entity->syncTree)->GetVehicleHealth();
 
 		return vn ? float(vn->engineHealth) : 0;
 	}));
 
 	fx::ScriptEngine::RegisterNativeHandler("GET_VEHICLE_PETROL_TANK_HEALTH", makeEntityFunction([](fx::ScriptContext& context, const fx::sync::SyncEntityPtr& entity)
 	{
-		auto vn = entity->syncTree->GetVehicleHealth();
+		auto vn = (*entity->syncTree)->GetVehicleHealth();
 
 		return vn ? float(vn->petrolTankHealth) : 0;
 	}));
 
 	fx::ScriptEngine::RegisterNativeHandler("IS_VEHICLE_TYRE_BURST", makeEntityFunction([](fx::ScriptContext& context, const fx::sync::SyncEntityPtr& entity)
 	{
-		auto vn = entity->syncTree->GetVehicleHealth();
+		auto vn = (*entity->syncTree)->GetVehicleHealth();
 
 		if (!vn)
 		{
@@ -544,28 +544,28 @@ static InitFunction initFunction([]()
 
 	fx::ScriptEngine::RegisterNativeHandler("GET_VEHICLE_BODY_HEALTH", makeEntityFunction([](fx::ScriptContext& context, const fx::sync::SyncEntityPtr& entity)
 	{
-		auto vn = entity->syncTree->GetVehicleHealth();
+		auto vn = (*entity->syncTree)->GetVehicleHealth();
 
 		return vn ? float(vn->bodyHealth) : 0;
 	}));
 
 	fx::ScriptEngine::RegisterNativeHandler("GET_PED_MAX_HEALTH", makeEntityFunction([](fx::ScriptContext& context, const fx::sync::SyncEntityPtr& entity)
 	{
-		auto pn = entity->syncTree->GetPedHealth();
+		auto pn = (*entity->syncTree)->GetPedHealth();
 
 		return pn ? pn->maxHealth : 0;
 	}));
 
 	fx::ScriptEngine::RegisterNativeHandler("GET_PED_ARMOUR", makeEntityFunction([](fx::ScriptContext& context, const fx::sync::SyncEntityPtr& entity)
 	{
-		auto pn = entity->syncTree->GetPedHealth();
+		auto pn = (*entity->syncTree)->GetPedHealth();
 
 		return pn ? pn->armour : 0;
 	}));
 
 	fx::ScriptEngine::RegisterNativeHandler("GET_PED_CAUSE_OF_DEATH", makeEntityFunction([](fx::ScriptContext& context, const fx::sync::SyncEntityPtr& entity)
 	{
-		auto pn = entity->syncTree->GetPedHealth();
+		auto pn = (*entity->syncTree)->GetPedHealth();
 
 		return pn ? pn->causeOfDeath : 0;
 	}));
@@ -574,7 +574,7 @@ static InitFunction initFunction([]()
 	{
 		if (entity->type == fx::sync::NetObjEntityType::Player || entity->type == fx::sync::NetObjEntityType::Ped)
 		{
-			auto pn = entity->syncTree->GetPedOrientation();
+			auto pn = (*entity->syncTree)->GetPedOrientation();
 			float heading = pn->desiredHeading * 180.0 / pi;
 			return (heading < 0) ? 360.0f + heading : heading;
 		}
@@ -615,7 +615,7 @@ static InitFunction initFunction([]()
 		case fx::sync::NetObjEntityType::Player:
 		case fx::sync::NetObjEntityType::Ped:
 		{
-			auto pn = entity->syncTree->GetPedHealth();
+			auto pn = (*entity->syncTree)->GetPedHealth();
 			return pn->maxHealth;
 		}
 		default:
@@ -630,7 +630,7 @@ static InitFunction initFunction([]()
 		case fx::sync::NetObjEntityType::Player:
 		case fx::sync::NetObjEntityType::Ped:
 		{
-			auto pn = entity->syncTree->GetPedHealth();
+			auto pn = (*entity->syncTree)->GetPedHealth();
 			return pn->health;
 		}
 		default:
@@ -642,7 +642,7 @@ static InitFunction initFunction([]()
 	{
 		if (context.GetArgumentCount() > 2)
 		{
-			auto vn = entity->syncTree->GetVehicleAppearance();
+			auto vn = (*entity->syncTree)->GetVehicleAppearance();
 
 			*context.GetArgument<int*>(1) = vn ? vn->primaryColour : 0;
 			*context.GetArgument<int*>(2) = vn ? vn->secondaryColour : 0;
@@ -656,7 +656,7 @@ static InitFunction initFunction([]()
 	{
 		if (context.GetArgumentCount() > 2)
 		{
-			auto vn = entity->syncTree->GetVehicleAppearance();
+			auto vn = (*entity->syncTree)->GetVehicleAppearance();
 
 			*context.GetArgument<int*>(1) = vn ? vn->pearlColour : 0;
 			*context.GetArgument<int*>(2) = vn ? vn->wheelColour : 0;
@@ -669,7 +669,7 @@ static InitFunction initFunction([]()
 	{
 		if (context.GetArgumentCount() > 1)
 		{
-			auto vn = entity->syncTree->GetVehicleAppearance();
+			auto vn = (*entity->syncTree)->GetVehicleAppearance();
 
 			*context.GetArgument<int*>(1) = vn ? vn->interiorColour : 0;
 		}
@@ -681,7 +681,7 @@ static InitFunction initFunction([]()
 	{
 		if (context.GetArgumentCount() > 1)
 		{
-			auto vn = entity->syncTree->GetVehicleAppearance();
+			auto vn = (*entity->syncTree)->GetVehicleAppearance();
 
 			*context.GetArgument<int*>(1) = vn ? vn->dashboardColour : 0;
 		}
@@ -693,7 +693,7 @@ static InitFunction initFunction([]()
 	{
 		if (context.GetArgumentCount() > 3)
 		{
-			auto vn = entity->syncTree->GetVehicleAppearance();
+			auto vn = (*entity->syncTree)->GetVehicleAppearance();
 
 			*context.GetArgument<int*>(1) = (vn && vn->isPrimaryColourRGB) ? vn->primaryRedColour : 0;
 			*context.GetArgument<int*>(2) = (vn && vn->isPrimaryColourRGB) ? vn->primaryGreenColour : 0;
@@ -707,7 +707,7 @@ static InitFunction initFunction([]()
 	{
 		if (context.GetArgumentCount() > 3)
 		{
-			auto vn = entity->syncTree->GetVehicleAppearance();
+			auto vn = (*entity->syncTree)->GetVehicleAppearance();
 
 			*context.GetArgument<int*>(1) = (vn && vn->isSecondaryColourRGB) ? vn->secondaryRedColour : 0;
 			*context.GetArgument<int*>(2) = (vn && vn->isSecondaryColourRGB) ? vn->secondaryGreenColour : 0;
@@ -719,49 +719,49 @@ static InitFunction initFunction([]()
 
 	fx::ScriptEngine::RegisterNativeHandler("GET_IS_VEHICLE_PRIMARY_COLOUR_CUSTOM", makeEntityFunction([](fx::ScriptContext& context, const fx::sync::SyncEntityPtr& entity)
 	{
-		auto vn = entity->syncTree->GetVehicleAppearance();
+		auto vn = (*entity->syncTree)->GetVehicleAppearance();
 
 		return vn ? vn->isPrimaryColourRGB : 0;
 	}));
 
 	fx::ScriptEngine::RegisterNativeHandler("GET_IS_VEHICLE_SECONDARY_COLOUR_CUSTOM", makeEntityFunction([](fx::ScriptContext& context, const fx::sync::SyncEntityPtr& entity)
 	{
-		auto vn = entity->syncTree->GetVehicleAppearance();
+		auto vn = (*entity->syncTree)->GetVehicleAppearance();
 
 		return vn ? vn->isSecondaryColourRGB : 0;
 	}));
 
 	fx::ScriptEngine::RegisterNativeHandler("GET_VEHICLE_LIVERY", makeEntityFunction([](fx::ScriptContext& context, const fx::sync::SyncEntityPtr& entity)
 	{
-		auto vn = entity->syncTree->GetVehicleAppearance();
+		auto vn = (*entity->syncTree)->GetVehicleAppearance();
 
 		return vn ? vn->liveryIndex : 0;
 	}));
 
 	fx::ScriptEngine::RegisterNativeHandler("GET_VEHICLE_ROOF_LIVERY", makeEntityFunction([](fx::ScriptContext& context, const fx::sync::SyncEntityPtr& entity)
 	{
-		auto vn = entity->syncTree->GetVehicleAppearance();
+		auto vn = (*entity->syncTree)->GetVehicleAppearance();
 
 		return vn ? vn->roofLiveryIndex : 0;
 	}));
 
 	fx::ScriptEngine::RegisterNativeHandler("GET_VEHICLE_DIRT_LEVEL", makeEntityFunction([](fx::ScriptContext& context, const fx::sync::SyncEntityPtr& entity)
 	{
-		auto vn = entity->syncTree->GetVehicleAppearance();
+		auto vn = (*entity->syncTree)->GetVehicleAppearance();
 
 		return vn ? vn->dirtLevel : 0;
 	}));
 
 	fx::ScriptEngine::RegisterNativeHandler("GET_VEHICLE_WHEEL_TYPE", makeEntityFunction([](fx::ScriptContext& context, const fx::sync::SyncEntityPtr& entity)
 	{
-		auto vn = entity->syncTree->GetVehicleAppearance();
+		auto vn = (*entity->syncTree)->GetVehicleAppearance();
 
 		return vn ? vn->wheelType : 0;
 	}));
 
 	fx::ScriptEngine::RegisterNativeHandler("GET_VEHICLE_WINDOW_TINT", makeEntityFunction([](fx::ScriptContext& context, const fx::sync::SyncEntityPtr& entity)
 	{
-		auto vn = entity->syncTree->GetVehicleAppearance();
+		auto vn = (*entity->syncTree)->GetVehicleAppearance();
 
 		return (vn)
 			? ((vn->windowTintIndex == 255) ? -1 : vn->windowTintIndex)
@@ -772,7 +772,7 @@ static InitFunction initFunction([]()
 	{
 		if (context.GetArgumentCount() > 2)
 		{
-			auto vn = entity->syncTree->GetVehicleAppearance();
+			auto vn = (*entity->syncTree)->GetVehicleAppearance();
 
 			*context.GetArgument<int*>(1) = vn ? vn->tyreSmokeRedColour : 0;
 			*context.GetArgument<int*>(2) = vn ? vn->tyreSmokeGreenColour : 0;
@@ -784,7 +784,7 @@ static InitFunction initFunction([]()
 
 	fx::ScriptEngine::RegisterNativeHandler("GET_VEHICLE_NUMBER_PLATE_TEXT", makeEntityFunction([](fx::ScriptContext& context, const fx::sync::SyncEntityPtr& entity)
 	{
-		auto vn = entity->syncTree->GetVehicleAppearance();
+		auto vn = (*entity->syncTree)->GetVehicleAppearance();
 
 		if (vn)
 		{
@@ -796,7 +796,7 @@ static InitFunction initFunction([]()
 
 	fx::ScriptEngine::RegisterNativeHandler("GET_VEHICLE_NUMBER_PLATE_TEXT_INDEX", makeEntityFunction([](fx::ScriptContext& context, const fx::sync::SyncEntityPtr& entity)
 	{
-		auto vn = entity->syncTree->GetVehicleAppearance();
+		auto vn = (*entity->syncTree)->GetVehicleAppearance();
 
 		if (vn)
 		{
@@ -808,7 +808,7 @@ static InitFunction initFunction([]()
 
 	fx::ScriptEngine::RegisterNativeHandler("HAS_VEHICLE_BEEN_OWNED_BY_PLAYER", makeEntityFunction([](fx::ScriptContext& context, const fx::sync::SyncEntityPtr& entity)
 	{
-		auto vn = entity->syncTree->GetVehicleGameState();
+		auto vn = (*entity->syncTree)->GetVehicleGameState();
 
 		if (vn)
 		{
@@ -820,7 +820,7 @@ static InitFunction initFunction([]()
 
 	fx::ScriptEngine::RegisterNativeHandler("HAS_ENTITY_BEEN_MARKED_AS_NO_LONGER_NEEDED", makeEntityFunction([](fx::ScriptContext& context, const fx::sync::SyncEntityPtr& entity)
 	{
-		auto vn = entity->syncTree->GetVehicleGameState();
+		auto vn = (*entity->syncTree)->GetVehicleGameState();
 
 		if (vn)
 		{
@@ -890,7 +890,7 @@ static InitFunction initFunction([]()
 
 	fx::ScriptEngine::RegisterNativeHandler("GET_VEHICLE_PED_IS_IN", makeEntityFunction([](fx::ScriptContext& context, const fx::sync::SyncEntityPtr& entity)
 	{
-		auto node = entity->syncTree->GetPedGameState();
+		auto node = (*entity->syncTree)->GetPedGameState();
 		bool lastVehicleArg = context.GetArgument<bool>(1);
 
 
@@ -971,7 +971,7 @@ static InitFunction initFunction([]()
 
 	fx::ScriptEngine::RegisterNativeHandler("GET_SELECTED_PED_WEAPON", makeEntityFunction([](fx::ScriptContext& context, const fx::sync::SyncEntityPtr& entity)
 	{
-		auto node = entity->syncTree->GetPedGameState();
+		auto node = (*entity->syncTree)->GetPedGameState();
 
 		return uint32_t(node ? node->curWeapon : 0);
 	}));
@@ -983,28 +983,28 @@ static InitFunction initFunction([]()
 
 	fx::ScriptEngine::RegisterNativeHandler("GET_PLAYER_TEAM", MakePlayerEntityFunction([](fx::ScriptContext& context, const fx::sync::SyncEntityPtr& entity)
 	{
-		auto pn = entity->syncTree->GetPlayerGameState();
+		auto pn = (*entity->syncTree)->GetPlayerGameState();
 
 		return pn ? pn->playerTeam : 0;
 	}));
 
 	fx::ScriptEngine::RegisterNativeHandler("GET_AIR_DRAG_MULTIPLIER_FOR_PLAYERS_VEHICLE", MakePlayerEntityFunction([](fx::ScriptContext& context, const fx::sync::SyncEntityPtr& entity)
 	{
-		auto pn = entity->syncTree->GetPlayerGameState();
+		auto pn = (*entity->syncTree)->GetPlayerGameState();
 
 		return pn ? pn->airDragMultiplier : 0.0f;
 	}));
 
 	fx::ScriptEngine::RegisterNativeHandler("GET_PLAYER_MAX_HEALTH", MakePlayerEntityFunction([](fx::ScriptContext& context, const fx::sync::SyncEntityPtr& entity)
 	{
-		auto pn = entity->syncTree->GetPlayerGameState();
+		auto pn = (*entity->syncTree)->GetPlayerGameState();
 
 		return pn ? pn->maxHealth : 100;
 	}));
 
 	fx::ScriptEngine::RegisterNativeHandler("GET_PLAYER_MAX_ARMOUR", MakePlayerEntityFunction([](fx::ScriptContext& context, const fx::sync::SyncEntityPtr& entity)
 	{
-		auto pn = entity->syncTree->GetPlayerGameState();
+		auto pn = (*entity->syncTree)->GetPlayerGameState();
 
 		return pn ? pn->maxArmour : 100;
 	}));
@@ -1012,7 +1012,7 @@ static InitFunction initFunction([]()
 	fx::ScriptEngine::RegisterNativeHandler("NETWORK_GET_VOICE_PROXIMITY_OVERRIDE_FOR_PLAYER", MakePlayerEntityFunction([](fx::ScriptContext& context, const fx::sync::SyncEntityPtr& entity)
 	{
 		float position[3];
-		auto pn = entity->syncTree->GetPlayerGameState();
+		auto pn = (*entity->syncTree)->GetPlayerGameState();
 
 		scrVector resultVec = { 0 };
 
@@ -1034,42 +1034,42 @@ static InitFunction initFunction([]()
 
 	fx::ScriptEngine::RegisterNativeHandler("GET_PLAYER_WEAPON_DEFENSE_MODIFIER", MakePlayerEntityFunction([](fx::ScriptContext& context, const fx::sync::SyncEntityPtr& entity)
 	{
-		auto pn = entity->syncTree->GetPlayerGameState();
+		auto pn = (*entity->syncTree)->GetPlayerGameState();
 
 		return pn ? pn->weaponDefenseModifier : 1.0f;
 	}));
 
 	fx::ScriptEngine::RegisterNativeHandler("GET_PLAYER_WEAPON_DEFENSE_MODIFIER_2", MakePlayerEntityFunction([](fx::ScriptContext& context, const fx::sync::SyncEntityPtr& entity)
 	{
-		auto pn = entity->syncTree->GetPlayerGameState();
+		auto pn = (*entity->syncTree)->GetPlayerGameState();
 
 		return pn ? pn->weaponDefenseModifier2 : 1.0f;
 	}));
 
 	fx::ScriptEngine::RegisterNativeHandler("GET_PLAYER_WEAPON_DAMAGE_MODIFIER", MakePlayerEntityFunction([](fx::ScriptContext& context, const fx::sync::SyncEntityPtr& entity)
 	{
-		auto pn = entity->syncTree->GetPlayerGameState();
+		auto pn = (*entity->syncTree)->GetPlayerGameState();
 
 		return pn ? pn->weaponDamageModifier : 1.0f;
 	}));
 
 	fx::ScriptEngine::RegisterNativeHandler("GET_PLAYER_MELEE_WEAPON_DAMAGE_MODIFIER", MakePlayerEntityFunction([](fx::ScriptContext& context, const fx::sync::SyncEntityPtr& entity)
 	{
-		auto pn = entity->syncTree->GetPlayerGameState();
+		auto pn = (*entity->syncTree)->GetPlayerGameState();
 
 		return pn ? pn->meleeWeaponDamageModifier : 1.0f;
 	}));
 
 	fx::ScriptEngine::RegisterNativeHandler("IS_PLAYER_USING_SUPER_JUMP", MakePlayerEntityFunction([](fx::ScriptContext& context, const fx::sync::SyncEntityPtr& entity)
 	{
-		auto pn = entity->syncTree->GetPlayerGameState();
+		auto pn = (*entity->syncTree)->GetPlayerGameState();
 
 		return pn ? pn->isSuperJumpEnabled : false;
 	}));
 	
 	fx::ScriptEngine::RegisterNativeHandler("IS_VEHICLE_EXTRA_TURNED_ON", makeEntityFunction([](fx::ScriptContext& context, const fx::sync::SyncEntityPtr& entity)
 	{
-		auto vn = entity->syncTree->GetVehicleAppearance();
+		auto vn = (*entity->syncTree)->GetVehicleAppearance();
 		bool isExtraTurnedOn = false;
 
 		if (context.GetArgumentCount() > 1 && vn)
@@ -1207,7 +1207,7 @@ static InitFunction initFunction([]()
 
 	fx::ScriptEngine::RegisterNativeHandler("GET_PLAYER_INVINCIBLE", MakePlayerEntityFunction([](fx::ScriptContext& context, const fx::sync::SyncEntityPtr& entity)
 	{
-		auto pn = entity->syncTree->GetPlayerGameState();
+		auto pn = (*entity->syncTree)->GetPlayerGameState();
 
 		return pn ? pn->isInvincible : false;
 	}));

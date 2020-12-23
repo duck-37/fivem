@@ -73,26 +73,137 @@ namespace impl
 			return weak_counter.load();
 		}
 	};
+
+	template<typename T>
+	struct fixed_control_block
+	{
+		T value;
+		int ref_counter;
+
+		void inc_ref()
+		{
+			++ref_counter;
+		}
+		bool dec_ref()
+		{
+			return --ref_counter == 0;
+		}
+	};
 }
 
-using control_block_pool = object_pool<impl::control_block>;
+template<typename T>
+struct fixed_shared_reference
+{
+	using control_block_t = impl::fixed_control_block<T>;
+	using control_block_pool = object_pool<control_block_t>;
 
-// Pool of control blocks.
-//
-inline control_block_pool control_blocks;
+	void reset()
+	{
+		if (block != nullptr && block->dec_ref())
+			control_block_pool::destruct(block);
+
+		block = nullptr;
+	}
+
+	explicit operator bool() const
+	{
+		return block != nullptr;
+	}
+
+	bool operator==(const fixed_shared_reference& other)
+	{
+		return block == other.block;
+	}
+
+	T& operator*() const
+	{
+		return block->value;
+	}
+
+	T* operator->() const
+	{
+		return &block->value;
+	}
+
+	T* get() const
+	{
+		return &block->value;
+	}
+
+	fixed_shared_reference(const fixed_shared_reference& other)
+	{
+		if (other.block != nullptr)
+			other.block->inc_ref();
+
+		block = other.block;
+	}
+
+	fixed_shared_reference(fixed_shared_reference&& other) noexcept
+	{
+		block = other.block;
+		other.block = nullptr;
+	}
+
+	fixed_shared_reference& operator=(const fixed_shared_reference& other)
+	{
+		if (other.block != nullptr)
+			other.block->inc_ref();
+
+		reset();
+
+		block = other.block;
+		return *this;
+	}
+
+	fixed_shared_reference& operator=(fixed_shared_reference&& other) noexcept
+	{
+		reset();
+
+		block = other.block;
+		other.block = nullptr;
+
+		return *this;
+	}
+
+	fixed_shared_reference() : block(nullptr)
+	{}
+
+	~fixed_shared_reference()
+	{
+		reset();
+	}
+
+	template<typename... A>
+	static fixed_shared_reference make(A &&... args)
+	{
+		fixed_shared_reference return_val{};
+
+		auto* blk = control_block_pool::allocate();
+		new(&blk->value) T(std::forward<A>(args)...);
+		blk->ref_counter = 1;
+		return_val.block = blk;
+
+		return return_val;
+	}
+
+private:
+	control_block_t* block;
+};
+
+using control_block_pool = fx::object_pool<impl::control_block>;
 
 template<typename T>
 struct weak_reference;
 
 // Used to implement shared and weak references with the control block *not* tied to the original value.
 //
-template<typename T, auto Pool>
+template<typename T, typename Pool>
 struct shared_reference
 {
 	friend struct weak_reference<shared_reference>;
 
 	using Type = T;
-	constexpr static auto MPool = Pool;
+	using PoolT = Pool;
 
 	void reset()
 	{
@@ -100,11 +211,11 @@ struct shared_reference
 		{
 			if (block->dec_ref())
 			{
-				Pool->destruct(value);
+				PoolT::destruct(value);
 
 				if (block->dec_weak())
 				{
-					control_blocks.destruct(block);
+					control_block_pool::destruct(block);
 				}
 			}
 		}
@@ -198,10 +309,11 @@ struct shared_reference
 	{
 		shared_reference return_val{};
 
-		return_val.block = control_blocks.construct();
-		return_val.block->inc_ref();
-		return_val.block->inc_weak();
-		return_val.value = Pool->construct(std::forward<A>(args)...);
+		auto* blk = control_block_pool::allocate();
+		blk->ref_counter = 1;
+		blk->weak_counter = 1;
+		return_val.block = blk;
+		return_val.value = PoolT::construct(std::forward<A>(args)...);
 
 		return return_val;
 	}
@@ -215,7 +327,7 @@ template<typename SharedT>
 struct weak_reference
 {
 	using Type = typename SharedT::Type;
-	constexpr static auto MPool = SharedT::MPool;
+	using PoolT = typename SharedT::PoolT;
 
 	operator bool() const
 	{
@@ -253,7 +365,7 @@ struct weak_reference
 	void reset()
 	{
 		if (value != nullptr && block->dec_weak())
-			control_blocks.destruct(block);
+			control_block_pool::destruct(block);
 
 		value = nullptr;
 	}

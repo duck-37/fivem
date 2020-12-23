@@ -236,7 +236,7 @@ static void CreatePlayerCommands()
 		{
 			auto entity = gameState->GetEntity(std::any_cast<uint32_t>(client->GetData("playerEntity")));
 
-			auto node = entity->syncTree->GetPlayerWantedAndLOS();
+			auto node = (*entity->syncTree)->GetPlayerWantedAndLOS();
 			
 			return node ? node->wantedLevel : 0;
 		}
@@ -261,7 +261,7 @@ static void CreatePlayerCommands()
 		{
 			auto entity = gameState->GetEntity(std::any_cast<uint32_t>(client->GetData("playerEntity")));
 
-			auto node = entity->syncTree->GetPlayerWantedAndLOS();
+			auto node = (*entity->syncTree)->GetPlayerWantedAndLOS();
 
 			return node ? node->isEvading : 0;
 		}
@@ -286,7 +286,7 @@ static void CreatePlayerCommands()
 		{
 			auto entity = gameState->GetEntity(std::any_cast<uint32_t>(client->GetData("playerEntity")));
 
-			auto node = entity->syncTree->GetPlayerWantedAndLOS();
+			auto node = (*entity->syncTree)->GetPlayerWantedAndLOS();
 			bool prevPursuitArg = context.GetArgument<bool>(1);
 
 			if (node)

@@ -399,6 +399,54 @@ enum class NetObjEntityType
 	Train = 13
 };
 
+struct SyncTreeImplBase
+{
+	virtual SyncTreeBase* GetSyncTree() = 0;
+
+	SyncTreeBase* operator->()
+	{
+		return GetSyncTree();
+	}
+
+	SyncTreeImplBase() = default;
+
+	SyncTreeImplBase(const SyncTreeImplBase& other) = delete;
+	SyncTreeImplBase(SyncTreeImplBase&& other) = delete;
+
+	SyncTreeImplBase& operator=(const SyncTreeImplBase& other) = delete;
+	SyncTreeImplBase& operator=(SyncTreeImplBase&& other) = delete;
+
+	virtual ~SyncTreeImplBase() = default;
+};
+
+template<typename ST>
+struct SyncTreeImpl : SyncTreeImplBase
+{
+	using PoolT = fx::object_pool<ST, 256, 4>;
+	ST* syncTree;
+
+	template<typename T>
+	auto GetNode()
+	{
+		return syncTree->template GetNode<T>();
+	}
+
+	SyncTreeImpl()
+	{
+		syncTree = PoolT::construct();
+	}
+
+	~SyncTreeImpl()
+	{
+		PoolT::destruct(syncTree);
+	}
+
+	SyncTreeBase* GetSyncTree() override
+	{
+		return syncTree;
+	}
+};
+
 struct SyncEntityState
 {
 	using TData = std::variant<int, float, bool, std::string>;
@@ -430,7 +478,7 @@ struct SyncEntityState
 	std::chrono::milliseconds lastReceivedAt;
 	std::chrono::milliseconds lastMigratedAt;
 
-	std::shared_ptr<SyncTreeBase> syncTree;
+	std::shared_ptr<SyncTreeImplBase> syncTree;
 
 	ScriptGuid* guid = nullptr;
 	uint32_t handle;
@@ -463,7 +511,7 @@ struct SyncEntityState
 		uint32_t scriptHash = 0;
 		if (syncTree)
 		{
-			syncTree->GetScriptHash(&scriptHash);
+			(*syncTree)->GetScriptHash(&scriptHash);
 		}
 		return scriptHash;
 	}
@@ -528,8 +576,8 @@ private:
 
 namespace fx::sync
 {
-inline object_pool<fx::sync::SyncEntityState, 2 * 1024 * 1024> syncEntityPool;
-using SyncEntityPtr = shared_reference<fx::sync::SyncEntityState, &syncEntityPool>;
+using SyncEntityPoolT = object_pool<fx::sync::SyncEntityState, 512>;
+using SyncEntityPtr = shared_reference<fx::sync::SyncEntityState, SyncEntityPoolT>;
 using SyncEntityWeakPtr = weak_reference<SyncEntityPtr>;
 
 struct SyncParseState
@@ -587,11 +635,10 @@ struct SyncCommandState
 
 struct SyncCommand
 {
-	using SyncCommandKey = typename detached_scsc_queue<SyncCommand>::key;
 	using SyncCommandCallback = tp::FixedFunction<void(SyncCommandState&), 128>;
 
 	SyncCommandCallback callback;
-	SyncCommandKey commandKey = {};
+	intrusive_deque_key<SyncCommand> commandKey{};
 
 	SyncCommand(SyncCommandCallback&& callback)
 		: callback(std::move(callback))
@@ -601,18 +648,17 @@ struct SyncCommand
 struct SyncCommandList
 {
 	uint64_t frameIndex;
-	detached_scsc_queue<SyncCommand> commands;
+	intrusive_deque<SyncCommand> commands;
 
 	void Execute(const fx::ClientSharedPtr& client);
 
-	using SyncCommandPool = object_pool<SyncCommand, 4 * 1024 * 1024, 4, 2>;
-	inline static SyncCommandPool syncPool;
+	using SyncCommandPool = object_pool<SyncCommand, 512, 4, 2>;
 
 	template<typename Fn>
 	void EnqueueCommand(Fn&& fn)
 	{
-		auto* ptr = syncPool.construct(std::forward<Fn>(fn));
-		commands.push(&ptr->commandKey);
+		auto* ptr = SyncCommandPool::construct(std::forward<Fn>(fn));
+		commands.push_back(&ptr->commandKey);
 	}
 
 	SyncCommandList(SyncCommandList&& other) = delete;
@@ -716,6 +762,8 @@ struct ClientEntityData
 	sync::SyncEntityPtr GetEntity(fx::ServerGameState* sgs) const;
 };
 
+using ClientEntityDataPtr = fixed_shared_reference<ClientEntityData>;
+
 struct EntityDeletionData
 {
 	bool outOfScope; // is this a deletion due to being out-of-scope?
@@ -724,10 +772,8 @@ struct EntityDeletionData
 
 struct ClientEntityState
 {
-	eastl::vector_map<uint16_t, ClientEntityData, std::less<uint16_t>, EASTLAllocatorType, eastl::deque<eastl::pair<uint16_t, ClientEntityData>, EASTLAllocatorType>> syncedEntities;
-
-	// and 24 deletions per frame
-	eastl::fixed_vector<std::tuple<uint32_t, EntityDeletionData>, 24> deletions;
+	eastl::hash_map<uint16_t, ClientEntityDataPtr> syncedEntities;
+	eastl::vector<std::tuple<uint32_t, EntityDeletionData>> deletions;
 };
 
 struct SyncedEntityData
@@ -737,8 +783,16 @@ struct SyncedEntityData
 	sync::SyncEntityPtr entity;
 	bool forceUpdate;
 	bool hasCreated;
-	bool hasNAckedCreate = false;
+	bool hasNAckedCreate;
+
+	SyncedEntityData(std::chrono::milliseconds nextSync, std::chrono::milliseconds syncDelta, sync::SyncEntityPtr entity, bool forceUpdate, bool hasCreated, bool hasNackedCreate = false)
+		: nextSync(nextSync), syncDelta(syncDelta), entity(std::move(entity)), forceUpdate(forceUpdate), hasCreated(hasCreated), hasNAckedCreate(hasNAckedCreate)
+	{
+	 
+	}
 };
+
+using SyncedEntityDataPtr = fx::fixed_shared_reference<SyncedEntityData>;
 
 constexpr auto maxSavedClientFrames = 650; // enough for ~8-9 seconds, after 5 we'll start using worst-case frames
 constexpr auto maxSavedClientFramesWorstCase = (60000 / 15); // enough for ~60 seconds
@@ -761,23 +815,25 @@ struct GameStateClientData : public sync::ClientSyncDataBase
 	glm::mat4x4 viewMatrix{};
 
 	eastl::fixed_hash_map<uint32_t, uint64_t, 100> pendingCreates;
-	eastl::fixed_map<uint64_t, ClientEntityState, maxSavedClientFrames, true> frameStates;
+	eastl::fixed_hash_map<uint64_t, ClientEntityState, maxSavedClientFrames> frameStates;
 	uint64_t firstSavedFrameState = 0;
 
 	fx::ClientWeakPtr client;
-
+	 
 	eastl::fixed_hash_map<int, int, 128> playersToSlots;
 	eastl::bitset<128> playersInScope;
 	
-	// use fixed_map to make insertion into the vector_map cheap (as sorted)
-	eastl::fixed_map<uint32_t, SyncedEntityData, 256> syncedEntities;
+	// using a pointer to the actual data has two benefits
+	// 1 - object pool == hopefully less heap spam
+	// 2 - smaller hashtable size == faster moving of data
+	eastl::hash_map<uint32_t, SyncedEntityDataPtr> syncedEntities;
 	eastl::fixed_hash_map<uint32_t, std::tuple<sync::SyncEntityPtr, EntityDeletionData>, 16> entitiesToDestroy;
 
 	uint32_t syncTs = 0;
 	uint32_t ackTs = 0;
 	uint64_t fidx = 0;
 
-	eastl::fixed_hash_map<uint16_t /* (x << 8) | y */, std::chrono::milliseconds, 10> worldGridCooldown;
+	eastl::fixed_hash_map<uint16_t /* (x << 8) | y */, std::chrono::milliseconds, 16> worldGridCooldown;
 
 	std::shared_ptr<fx::StateBag> playerBag;
 
@@ -829,7 +885,7 @@ public:
 
 	void ClearClientFromWorldGrid(const fx::ClientSharedPtr& targetClient);
 
-	fx::sync::SyncEntityPtr CreateEntityFromTree(sync::NetObjEntityType type, const std::shared_ptr<sync::SyncTreeBase>& tree);
+	fx::sync::SyncEntityPtr CreateEntityFromTree(sync::NetObjEntityType type, const std::shared_ptr<sync::SyncTreeImplBase>& tree);
 
 	inline EntityLockdownMode GetEntityLockdownMode()
 	{
@@ -995,7 +1051,7 @@ public:
 // for use in sync trees
 inline ServerGameState* g_serverGameState = nullptr;
 
-std::shared_ptr<sync::SyncTreeBase> MakeSyncTree(sync::NetObjEntityType objectType);
+std::shared_ptr<sync::SyncTreeImplBase> MakeSyncTree(sync::NetObjEntityType objectType);
 }
 
 DECLARE_INSTANCE_TYPE(fx::ServerGameState);

@@ -249,11 +249,7 @@ inline std::shared_ptr<GameStateClientData> GetClientDataUnlocked(ServerGameStat
 {
 	// NOTE: static_pointer_cast typically will lead to an unneeded refcount increment+decrement
 	// Doing this makes it so that there's only *one* increment for the fast case.
-#ifndef _MSC_VER
 	auto data = std::static_pointer_cast<GameStateClientData>(client->GetSyncData());
-#else
-	auto data = std::shared_ptr<GameStateClientData>{ reinterpret_cast<std::shared_ptr<GameStateClientData>&&>(client->GetSyncData()) };
-#endif
 
 	if (!data)
 	{
@@ -402,9 +398,9 @@ glm::vec3 GetPlayerFocusPos(const fx::sync::SyncEntityPtr& entity)
 	}
 
 	float playerPos[3];
-	syncTree->GetPosition(playerPos);
+	(*syncTree)->GetPosition(playerPos);
 
-	auto camData = syncTree->GetPlayerCamera();
+	auto camData = (*syncTree)->GetPlayerCamera();
 
 	if (!camData)
 	{
@@ -592,15 +588,18 @@ void sync::SyncCommandList::Execute(const fx::ClientSharedPtr& client)
 		MaybeFlushBuffer(scsSelf.cloneBuffer, HashRageString("msgPackedClones"), frameIndex, client, plannedBits, &fragmentIndex);
 	};
 
-	auto c_key = commands.flush();
+	auto c_key = commands.tail;
 	while (c_key != nullptr)
 	{
 		auto to_run = c_key->get(&sync::SyncCommand::commandKey);
 		c_key = c_key->next;
 
 		to_run->callback(scs);
-		syncPool.destruct(to_run);
+		SyncCommandPool::destruct(to_run);
 	}
+
+	commands.head = nullptr;
+	commands.tail = nullptr;
 
 	scs.flushBuffer(true);
 	scs.Reset();
@@ -703,7 +702,7 @@ void ServerGameState::Tick(fx::ServerInstanceBase* instance)
 			}
 
 			float position[3];
-			entity->syncTree->GetPosition(position);
+			(*entity->syncTree)->GetPosition(position);
 
 			glm::vec3 entityPosition(position[0], position[1], position[2]);
 
@@ -720,7 +719,7 @@ void ServerGameState::Tick(fx::ServerInstanceBase* instance)
 				entity->type == sync::NetObjEntityType::Trailer ||
 				entity->type == sync::NetObjEntityType::Train)
 			{
-				vehicleData = entity->syncTree->GetVehicleGameState();
+				vehicleData = (*entity->syncTree)->GetVehicleGameState();
 			}
 			
 			relevantEntities[maxValidEntity] = { entity, entityPosition, vehicleData, entity->GetClient() };
@@ -782,6 +781,9 @@ void ServerGameState::Tick(fx::ServerInstanceBase* instance)
 
 		auto& currentSyncedEntities = clientDataUnlocked->syncedEntities;
 		decltype(clientDataUnlocked->syncedEntities) newSyncedEntities{};
+
+		// hopefully prevent frequent rehashing.
+		newSyncedEntities.reserve(maxValidEntity);
 
 		for (int entityIndex = 0; entityIndex < maxValidEntity; entityIndex++)
 		{
@@ -918,7 +920,7 @@ void ServerGameState::Tick(fx::ServerInstanceBase* instance)
 					{
 						auto& entityData = syncIt->second;
 
-						if (entityData.hasCreated)
+						if (entityData->hasCreated)
 						{
 							shouldDelete = true;
 						}
@@ -961,6 +963,8 @@ void ServerGameState::Tick(fx::ServerInstanceBase* instance)
 					case sync::NetObjEntityType::Boat:
 					case sync::NetObjEntityType::Plane:
 						objRadius = 15.0f;
+						break;
+					default:
 						break;
 					}
 
@@ -1009,10 +1013,12 @@ void ServerGameState::Tick(fx::ServerInstanceBase* instance)
 				auto& entityData = syncIt->second;
 				if (isRelevant)
 				{
-					const auto deltaTime = syncDelay - entityData.syncDelta;
-					newSyncedEntities[entIdentifier] = { entityData.nextSync + deltaTime, syncDelay, entity, entityData.forceUpdate, entityData.hasCreated, false };
+					const auto deltaTime = syncDelay - entityData->syncDelta;
+					entityData->nextSync += deltaTime;
+					entityData->syncDelta = syncDelay;
+					newSyncedEntities[entIdentifier] = entityData;
 				}
-				else if (entityData.hasCreated || entityData.hasNAckedCreate)
+				else if (entityData->hasCreated || entityData->hasNAckedCreate)
 				{
 					GS_LOG("destroying entity %d:%d for client %d due to scope exit\n", entity->handle, entity->uniqifier, client->GetNetId());
 					clientDataUnlocked->entitiesToDestroy[entIdentifier] = { entity, { true, false } };
@@ -1028,7 +1034,7 @@ void ServerGameState::Tick(fx::ServerInstanceBase* instance)
 					entity->outOfScopeFor.reset(slotId);
 				}
 
-				newSyncedEntities[entIdentifier] = { 0ms, syncDelay, entity, true, false, false };
+				newSyncedEntities[entIdentifier] = SyncedEntityDataPtr::make(0ms, syncDelay, entity, true, false, false);
 			}
 		}
 
@@ -1076,9 +1082,9 @@ void ServerGameState::Tick(fx::ServerInstanceBase* instance)
 		}
 
 		SendArrayData(client);
-
-		static fx::object_pool<sync::SyncCommandList, 512 * 1024> syncPool;
-		auto scl = shared_reference<sync::SyncCommandList, &syncPool>::Construct(m_frameIndex);
+		
+		using SyncPoolT = fx::object_pool<sync::SyncCommandList, 512>;
+		auto scl = shared_reference<sync::SyncCommandList, SyncPoolT>::Construct(m_frameIndex);
 
 		auto clientDataUnlocked = GetClientDataUnlocked(this, client);
 
@@ -1110,7 +1116,7 @@ void ServerGameState::Tick(fx::ServerInstanceBase* instance)
 
 			++entityIt;
 
-			auto& entity = syncData.entity;
+			auto& entity = syncData->entity;
 
 			if (entity->deleting)
 			{
@@ -1273,8 +1279,8 @@ void ServerGameState::Tick(fx::ServerInstanceBase* instance)
 		{
 			auto& [identPair, syncData] = *syncIt;
 			auto [objectId, uniqifier] = DeconstructHandleUniqifierPair(identPair);
-			auto& entity = syncData.entity;
-			auto& forceUpdate = syncData.forceUpdate;
+			auto& entity = syncData->entity;
+			auto& forceUpdate = syncData->forceUpdate;
 
 			// relevant entity owned by nobody, or wants a reassign? try to yoink it
 			// (abuse clientMutex for wantsReassign safety)
@@ -1288,7 +1294,7 @@ void ServerGameState::Tick(fx::ServerInstanceBase* instance)
 				}
 			}
 
-			if (!syncData.hasCreated)
+			if (!syncData->hasCreated)
 			{
 				bool canCreate = true;
 				if (fx::IsBigMode())
@@ -1431,14 +1437,14 @@ void ServerGameState::Tick(fx::ServerInstanceBase* instance)
 				localLastFrameIndex = entity->lastFrameIndex;
 			}
 
-			ces.syncedEntities[entity->handle] = { entity, baseFrameIndex, syncData.hasCreated };
+			ces.syncedEntities[entity->handle] = ClientEntityDataPtr::make(entity, baseFrameIndex, syncData->hasCreated);
 
 			// should we sync?
-			if (forceUpdate || syncData.nextSync - curTime <= 0ms)
+			if (forceUpdate || syncData->nextSync - curTime <= 0ms)
 			{
 				if (!forceUpdate)
 				{
-					syncData.nextSync = curTime + syncData.syncDelta;
+					syncData->nextSync = curTime + syncData->syncDelta;
 				}
 
 				if (auto stateBag = entity->stateBag)
@@ -1449,7 +1455,7 @@ void ServerGameState::Tick(fx::ServerInstanceBase* instance)
 				bool wasForceUpdate = forceUpdate;
 				forceUpdate = false;
 
-				auto syncType = syncData.hasCreated ? 2 : 1;
+				auto syncType = syncData->hasCreated ? 2 : 1;
 
 				auto _ent = entity;
 
@@ -1493,7 +1499,7 @@ void ServerGameState::Tick(fx::ServerInstanceBase* instance)
 						state.lastFrameIndex = frameIndex;
 						state.isFirstUpdate = isFirstFrameUpdate;
 
-						bool wroteData = entity->syncTree->Unparse(state);
+						bool wroteData = (*entity->syncTree)->Unparse(state);
 
 						if (wroteData)
 						{
@@ -1585,7 +1591,7 @@ void ServerGameState::Tick(fx::ServerInstanceBase* instance)
 						// #IFNAK
 						if (m_syncStyle == SyncStyle::NAK)
 						{
-							syncData.hasCreated = true;
+							syncData->hasCreated = true;
 						}
 
 						// first-frame update
@@ -1695,12 +1701,13 @@ void ServerGameState::OnCloneRemove(const fx::sync::SyncEntityPtr& entity, const
 		entity->type == sync::NetObjEntityType::Player)
 	{
 		auto pedHandle = entity->handle;
-		auto vehicleData = entity->syncTree->GetPedGameState();
+		auto vehicleData = (*entity->syncTree)->GetPedGameState();
 
 		if (vehicleData)
 		{
 			auto curVehicle = (vehicleData->curVehicle != -1) ? GetEntity(0, vehicleData->curVehicle) : fx::sync::SyncEntityPtr{};
-			auto curVehicleData = (curVehicle && curVehicle->syncTree) ? curVehicle->syncTree->GetVehicleGameState() : nullptr;
+			auto curVehicleData = (curVehicle && curVehicle->syncTree) ? (*curVehicle->syncTree)->GetVehicleGameState()
+			: nullptr;
 
 			if (curVehicleData && curVehicleData->occupants[vehicleData->curVehicleSeat] == pedHandle)
 			{
@@ -1732,9 +1739,9 @@ void ServerGameState::UpdateEntities()
 			if (client)
 			{
 				float playerPos[3];
-				entity->syncTree->GetPosition(playerPos);
+				(*entity->syncTree)->GetPosition(playerPos);
 
-				auto camData = entity->syncTree->GetPlayerCamera();
+				auto camData = (*entity->syncTree)->GetPlayerCamera();
 
 				if (camData)
 				{
@@ -1789,7 +1796,7 @@ void ServerGameState::UpdateEntities()
 			entity->type == sync::NetObjEntityType::Player)
 		{
 			auto pedHandle = entity->handle;
-			auto vehicleData = entity->syncTree->GetPedGameState();
+			auto vehicleData = (*entity->syncTree)->GetPedGameState();
 
 			if (vehicleData)
 			{
@@ -1798,8 +1805,9 @@ void ServerGameState::UpdateEntities()
 					auto lastVehicle = (vehicleData->lastVehicle != -1) ? GetEntity(0, vehicleData->lastVehicle) : fx::sync::SyncEntityPtr{};
 					auto curVehicle = (vehicleData->curVehicle != -1) ? GetEntity(0, vehicleData->curVehicle) : fx::sync::SyncEntityPtr{};
 
-					auto lastVehicleData = (lastVehicle && lastVehicle->syncTree) ? lastVehicle->syncTree->GetVehicleGameState() : nullptr;
-					auto curVehicleData = (curVehicle && curVehicle->syncTree) ? curVehicle->syncTree->GetVehicleGameState() : nullptr;
+					auto lastVehicleData = (lastVehicle && lastVehicle->syncTree) ? (*lastVehicle->syncTree)->GetVehicleGameState() : nullptr;
+					auto curVehicleData = (curVehicle && curVehicle->syncTree) ? (*curVehicle->syncTree)->GetVehicleGameState()
+					: nullptr;
 
 					if (lastVehicleData && lastVehicleData->occupants[vehicleData->lastVehicleSeat] == pedHandle)
 					{
@@ -1978,7 +1986,7 @@ void ServerGameState::UpdateWorldGrid(fx::ServerInstanceBase* instance)
 				{
 					if (m_worldGrids[data->routingBucket].accel.netIDs[entry.sectorX][entry.sectorY] == netID)
 					{
-						m_worldGrids[data->routingBucket].accel.netIDs[entry.sectorX][entry.sectorY] = -1;
+						m_worldGrids[data->routingBucket].accel.netIDs[entry.sectorX][entry.sectorY] = ~0U;
 					}
 
 					data->worldGridCooldown.erase((uint16_t(entry.sectorX) << 8) | entry.sectorY);
@@ -2126,7 +2134,7 @@ void ServerGameState::ReassignEntity(uint32_t entityHandle, const fx::ClientShar
 		auto [lock, data] = GetClientData(this, crClient);
 		if (auto entIt = data->syncedEntities.find(uniqPair); entIt != data->syncedEntities.end())
 		{
-			entIt->second.forceUpdate = true;
+			entIt->second->forceUpdate = true;
 		}
 	});
 	// when deleted, we want to make this object ID return to the global pool, not to the player who last owned it
@@ -2161,7 +2169,7 @@ bool ServerGameState::MoveEntityToCandidate(const fx::sync::SyncEntityPtr& entit
 
 		if (entity->syncTree)
 		{
-			entity->syncTree->GetPosition(position);
+			(*entity->syncTree)->GetPosition(position);
 		}
 
 		glm::vec3 pos{
@@ -2354,7 +2362,7 @@ void ServerGameState::HandleClientDrop(const fx::ClientSharedPtr& client, uint16
 		{
 			if (entity->syncTree)
 			{
-				entity->syncTree->Visit([slotId](sync::NodeBase& node)
+				(*entity->syncTree)->Visit([slotId](sync::NodeBase& node)
 				{
 					node.ackedPlayers.reset(slotId);
 
@@ -2604,7 +2612,7 @@ void ServerGameState::FinalizeClone(const fx::ClientSharedPtr& client, uint16_t 
 	}
 }
 
-auto ServerGameState::CreateEntityFromTree(sync::NetObjEntityType type, const std::shared_ptr<sync::SyncTreeBase>& tree) -> fx::sync::SyncEntityPtr
+auto ServerGameState::CreateEntityFromTree(sync::NetObjEntityType type, const std::shared_ptr<sync::SyncTreeImplBase>& tree) -> fx::sync::SyncEntityPtr
 {
 	bool hadId = false;
 
@@ -2830,7 +2838,7 @@ bool ServerGameState::ProcessClonePacket(const fx::ClientSharedPtr& client, rl::
 		auto syncTree = entity->syncTree;
 		if (syncTree)
 		{
-			syncTree->Parse(state);
+			(*syncTree)->Parse(state);
 
 			if (parsingType == 2)
 			{
@@ -2839,7 +2847,7 @@ bool ServerGameState::ProcessClonePacket(const fx::ClientSharedPtr& client, rl::
 
 			if (parsingType == 1)
 			{
-				syncTree->Visit([](sync::NodeBase& node)
+				(*syncTree)->Visit([](sync::NodeBase& node)
 				{
 					node.ackedPlayers.reset();
 
@@ -2869,6 +2877,9 @@ bool ServerGameState::ProcessClonePacket(const fx::ClientSharedPtr& client, rl::
 
 			break;
 		}
+
+		default:
+			break;
 	}
 
 	// trigger a clone creation event
@@ -2923,7 +2934,7 @@ bool ServerGameState::ProcessClonePacket(const fx::ClientSharedPtr& client, rl::
 			auto [lock, data] = GetClientData(this, client);
 			auto identPair = MakeHandleUniqifierPair(objectId, uniqifier);
 
-			data->syncedEntities[identPair] = { 0ms, 10ms, entity, false, true, false };
+			data->syncedEntities[identPair] = SyncedEntityDataPtr::make(0ms, 10ms, entity, false, true, false);
 			data->pendingCreates.erase(identPair);
 		}
 
@@ -3002,7 +3013,7 @@ bool ServerGameState::ValidateEntity(const fx::sync::SyncEntityPtr& entity)
 	{
 		sync::ePopType popType;
 
-		if (entity->syncTree->GetPopulationType(&popType))
+		if ((*entity->syncTree)->GetPopulationType(&popType))
 		{
 			if (popType == sync::POPTYPE_RANDOM_AMBIENT || popType == sync::POPTYPE_RANDOM_PARKED || popType == sync::POPTYPE_RANDOM_PATROL ||
 				popType == sync::POPTYPE_RANDOM_PERMANENT || popType == sync::POPTYPE_RANDOM_SCENARIO)
@@ -3105,7 +3116,7 @@ void ServerGameState::ParseAckPacket(const fx::ClientSharedPtr& client, net::Buf
 						auto [lock, clientData] = GetClientData(this, client);
 						if (auto secIt = clientData->syncedEntities.find(MakeHandleUniqifierPair(objectId, uniqifier)); secIt != clientData->syncedEntities.end())
 						{
-							secIt->second.hasCreated = true;
+							secIt->second->hasCreated = true;
 						}
 					}
 				}
@@ -3577,7 +3588,7 @@ void ServerGameState::AttachToObject(fx::ServerInstanceBase* instance)
 					pos[1] = 9999.0f;
 					pos[2] = 9999.0f;
 
-					entity->syncTree->GetPosition(pos);
+					(*entity->syncTree)->GetPosition(pos);
 
 					if (pos[0] >= x1 && pos[1] >= y1 && pos[0] < x2 && pos[1] < y2)
 					{
@@ -4267,6 +4278,8 @@ static std::function<bool()> GetEventHandler(fx::ServerInstanceBase* instance, c
 	bool isReply = buffer.Read<uint8_t>(); // is reply
 	uint16_t eventType = buffer.Read<uint16_t>(); // event ID
 
+	trace("logged event %d\n", (uint32_t)eventType);
+
 	switch(eventType)
 	{
 		case WEAPON_DAMAGE_EVENT: return GetHandler<CWeaponDamageEvent>(instance, client, std::move(buffer));
@@ -4464,11 +4477,11 @@ static InitFunction initFunction([]()
 				{
 					if (auto entIter = synced.find(objectId); entIter != synced.end())
 					{
-						if (auto ent = entIter->second.GetEntity(sgs.GetRef()))
+						if (auto ent = entIter->second->GetEntity(sgs.GetRef()))
 						{
 							if (auto secIt = clientData->syncedEntities.find(MakeHandleUniqifierPair(objectId, ent->uniqifier)); secIt != clientData->syncedEntities.end())
 							{
-								secIt->second.hasCreated = false;
+								secIt->second->hasCreated = false;
 							}
 						}
 					}
@@ -4478,7 +4491,7 @@ static InitFunction initFunction([]()
 				{
 					if (auto entIter = synced.find(objectId); entIter != synced.end())
 					{
-						if (auto ent = entIter->second.GetEntity(sgs.GetRef()))
+						if (auto ent = entIter->second->GetEntity(sgs.GetRef()))
 						{
 							std::lock_guard _(ent->frameMutex);
 							ent->lastFramesSent[slotId] = std::min(ent->lastFramesSent[slotId], lastFrame);
@@ -4491,7 +4504,7 @@ static InitFunction initFunction([]()
 			{
 				for (auto& [id, entityData] : synced)
 				{
-					fx::sync::SyncEntityPtr entityRef = entityData.GetEntity(sgs.GetRef());
+					fx::sync::SyncEntityPtr entityRef = entityData->GetEntity(sgs.GetRef());
 
 					if (entityRef)
 					{
@@ -4504,7 +4517,7 @@ static InitFunction initFunction([]()
 
 						if (auto secIt = clientData->syncedEntities.find(MakeHandleUniqifierPair(id, entityRef->uniqifier)); secIt != clientData->syncedEntities.end())
 						{
-							hasCreated = secIt->second.hasCreated;
+							hasCreated = secIt->second->hasCreated;
 						}
 
 						bool hasDeleted = entityRef->deletedFor.test(slotId);
@@ -4564,22 +4577,22 @@ static InitFunction initFunction([]()
 							auto& [synced, deletions] = frameIt->second;
 							for (auto& [objectId, entData] : synced)
 							{
-								if (auto ent = entData.GetEntity(sgs.GetRef()))
+								if (auto ent = entData->GetEntity(sgs.GetRef()))
 								{
 									const auto entIdentifier = MakeHandleUniqifierPair(objectId, ent->uniqifier);
 
-									if (!entData.isCreated)
+									if (!entData->isCreated)
 									{
 										if (auto syncedIt = clientData->syncedEntities.find(entIdentifier); syncedIt != clientData->syncedEntities.end())
 										{
-											syncedIt->second.hasCreated = false;
-											syncedIt->second.hasNAckedCreate = true;
+											syncedIt->second->hasCreated = false;
+											syncedIt->second->hasNAckedCreate = true;
 										}
 									}
 									else
 									{
 										std::lock_guard _(ent->frameMutex);
-										ent->lastFramesSent[slotId] = std::min(entData.lastSent, ent->lastFramesSent[slotId]);
+										ent->lastFramesSent[slotId] = std::min(entData->lastSent, ent->lastFramesSent[slotId]);
 										lastSentCorrections[objectId] = ent->lastFramesSent[slotId];
 									}
 								}
@@ -4598,7 +4611,8 @@ static InitFunction initFunction([]()
 					}
 
 					// propagate these frames into newer states, as well
-					for (auto frameIt = states.upper_bound(lastMissingFrame); frameIt != states.end(); frameIt++)
+					auto frame = lastMissingFrame + 1;
+					for (auto frameIt = states.find(frame); frameIt != states.end(); frameIt = states.find(++frame))
 					{
 						auto& [synced, deletions] = frameIt->second;
 
@@ -4606,7 +4620,7 @@ static InitFunction initFunction([]()
 						{
 							if (auto entIt = synced.find(objectId); entIt != synced.end())
 							{
-								entIt->second.lastSent = correction;
+								entIt->second->lastSent = correction;
 							}
 						}
 					}
@@ -4640,7 +4654,7 @@ static InitFunction initFunction([]()
 							auto& [synced, deletions] = frameIt->second;
 							if (auto entIter = synced.find(objectId); entIter != synced.end())
 							{
-								if (auto ent = entIter->second.GetEntity(sgs.GetRef()))
+								if (auto ent = entIter->second->GetEntity(sgs.GetRef()))
 								{
 									std::lock_guard _(ent->frameMutex);
 									ent->lastFramesSent[slotId] = std::min(resendFrame, ent->lastFramesSent[slotId]);
@@ -4665,14 +4679,14 @@ static InitFunction initFunction([]()
 							auto& [synced, deletions] = frameIt->second;
 							if (auto entIter = synced.find(objectId); entIter != synced.end())
 							{
-								if (auto ent = entIter->second.GetEntity(sgs.GetRef()))
+								if (auto ent = entIter->second->GetEntity(sgs.GetRef()))
 								{
 									const auto entIdentifier = MakeHandleUniqifierPair(objectId, ent->uniqifier);
 									if (auto syncedIt = clientData->syncedEntities.find(entIdentifier); syncedIt != clientData->syncedEntities.end())
 									{
 										GS_LOG("recreating id %d for client %d\n", objectId, client->GetNetId());
-										syncedIt->second.hasCreated = false;
-										syncedIt->second.hasNAckedCreate = true;
+										syncedIt->second->hasCreated = false;
+										syncedIt->second->hasNAckedCreate = true;
 									}
 								}
 							}

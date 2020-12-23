@@ -13,10 +13,9 @@ namespace fx::sync
 template<int Id1, int Id2, int Id3, bool CanSendOnFirst = true>
 struct NodeIds
 {
-	inline static std::tuple<int, int, int> GetIds()
-	{
-		return { Id1, Id2, Id3 };
-	}
+	constexpr static int CId1 = Id1;
+	constexpr static int CId2 = Id2;
+	constexpr static int CId3 = Id3;
 
 	inline static bool CanSendOnFirstUpdate()
 	{
@@ -24,20 +23,21 @@ struct NodeIds
 	}
 };
 
-inline bool shouldRead(SyncParseState& state, const std::tuple<int, int, int>& ids)
+template<typename TIds>
+inline bool shouldRead(SyncParseState& state)
 {
-	if ((std::get<0>(ids) & state.syncType) == 0)
+	if ((TIds::CId1 & state.syncType) == 0)
 	{
 		return false;
 	}
 
 	// because we hardcode this sync type to 0 (mA0), we can assume it's not used
-	if (std::get<2>(ids) && !(state.objType & std::get<2>(ids)))
+	if (TIds::CId3 && !(state.objType & TIds::CId3))
 	{
 		return false;
 	}
 
-	if ((std::get<1>(ids) & state.syncType) != 0)
+	if ((TIds::CId2 & state.syncType) != 0)
 	{
 		if (!state.buffer.ReadBit())
 		{
@@ -48,20 +48,21 @@ inline bool shouldRead(SyncParseState& state, const std::tuple<int, int, int>& i
 	return true;
 }
 
-inline bool shouldWrite(SyncUnparseState& state, const std::tuple<int, int, int>& ids, bool defaultValue = true)
+template<typename TIds>
+inline bool shouldWrite(SyncUnparseState& state, bool defaultValue = true)
 {
-	if ((std::get<0>(ids) & state.syncType) == 0)
+	if ((TIds::CId1 & state.syncType) == 0)
 	{
 		return false;
 	}
 
 	// because we hardcode this sync type to 0 (mA0), we can assume it's not used
-	if (std::get<2>(ids) && !(state.objType & std::get<2>(ids)))
+	if (TIds::CId3 && !(state.objType & TIds::CId3))
 	{
 		return false;
 	}
 
-	if ((std::get<1>(ids) & state.syncType) != 0)
+	if ((TIds::CId2 & state.syncType) != 0)
 	{
 		state.buffer.WriteBit(defaultValue);
 
@@ -71,24 +72,13 @@ inline bool shouldWrite(SyncUnparseState& state, const std::tuple<int, int, int>
 	return true;
 }
 
-// from https://stackoverflow.com/a/26902803
-template<class F, class...Ts, std::size_t...Is>
-void for_each_in_tuple(std::tuple<Ts...> & tuple, F func, std::index_sequence<Is...>) {
-	using expander = int[];
-	(void)expander {
-		0, ((void)func(std::get<Is>(tuple)), 0)...
-	};
-}
-
-template<class F, class...Ts>
-void for_each_in_tuple(std::tuple<Ts...> & tuple, F func) {
-	for_each_in_tuple(tuple, func, std::make_index_sequence<sizeof...(Ts)>());
-}
-
 template<class... TChildren>
 struct ChildList
 {
-
+	template<class F>
+	__forceinline void ForEach(F&& fn)
+	{
+	}
 };
 
 template<typename T, typename... TRest>
@@ -96,12 +86,25 @@ struct ChildList<T, TRest...>
 {
 	T first;
 	ChildList<TRest...> rest;
+
+	template<class F>
+	__forceinline void ForEach(F&& fn)
+	{
+		fn(first);
+		rest.template ForEach<F>(std::forward<F>(fn));
+	}
 };
 
 template<typename T>
 struct ChildList<T>
 {
 	T first;
+
+	template<class F>
+	__forceinline void ForEach(F&& fn)
+	{
+		fn(first);
+	}
 };
 
 template<typename T>
@@ -166,24 +169,6 @@ struct ChildListGetter<0>
 	}
 };
 
-template<typename TTuple>
-struct Foreacher
-{
-	template<typename TFn, size_t I = 0>
-	static inline std::enable_if_t<(I == ChildListInfo<TTuple>::Size)> for_each_in_tuple(TTuple& tuple, const TFn& fn)
-	{
-
-	}
-
-	template<typename TFn, size_t I = 0>
-	static inline std::enable_if_t<(I != ChildListInfo<TTuple>::Size)> for_each_in_tuple(TTuple& tuple, const TFn& fn)
-	{
-		fn(ChildListGetter<I>::Get(tuple));
-
-		for_each_in_tuple<TFn, I + 1>(tuple, fn);
-	}
-};
-
 template<typename TIds, typename... TChildren>
 struct ParentNode : public NodeBase
 {
@@ -204,12 +189,10 @@ struct ParentNode : public NodeBase
 	template<typename TData, size_t I = 0>
 	inline static constexpr std::enable_if_t<I != sizeof...(TChildren), size_t> LoopChildren()
 	{
-		size_t offset = ChildListElement<I, decltype(children)>::Type::template GetOffsetOf<TData>();
-
-		if (offset != 0)
+		constexpr size_t offset = ChildListElement<I, decltype(children)>::Type::template GetOffsetOf<TData>();
+		if constexpr (offset != 0)
 		{
 			constexpr size_t elemOff = ChildListGetter<I>::template GetOffset<decltype(children)>();
-
 			return offset + elemOff + offsetof(ParentNode, children);
 		}
 
@@ -231,12 +214,10 @@ struct ParentNode : public NodeBase
 	template<typename TData, size_t I = 0>
 	inline static constexpr std::enable_if_t<I != sizeof...(TChildren), size_t> LoopChildrenNode()
 	{
-		size_t offset = ChildListElement<I, decltype(children)>::Type::template GetOffsetOfNode<TData>();
-
-		if (offset != 0)
+		constexpr size_t offset = ChildListElement<I, decltype(children)>::Type::template GetOffsetOfNode<TData>();
+		if constexpr (offset != 0)
 		{
 			constexpr size_t elemOff = ChildListGetter<I>::template GetOffset<decltype(children)>();
-
 			return offset + elemOff + offsetof(ParentNode, children);
 		}
 
@@ -245,9 +226,9 @@ struct ParentNode : public NodeBase
 
 	virtual bool Parse(SyncParseState& state) final override
 	{
-		if (shouldRead(state, TIds::GetIds()))
+		if (shouldRead<TIds>(state))
 		{
-			Foreacher<decltype(children)>::for_each_in_tuple(children, [&](auto& child)
+			children.ForEach([&](auto& child)
 			{
 				child.Parse(state);
 			});
@@ -261,13 +242,12 @@ struct ParentNode : public NodeBase
 		bool should = false;
 
 		// TODO: back out writes if we didn't write any child
-		if (shouldWrite(state, TIds::GetIds()))
+		if (shouldWrite<TIds>(state))
 		{
-			Foreacher<decltype(children)>::for_each_in_tuple(children, [&](auto& child)
+			children.ForEach([&](auto& child)
 			{
 				bool thisShould = child.Unparse(state);
-
-				should = should || thisShould;
+				should = should || thisShould;	
 			});
 		}
 
@@ -278,7 +258,7 @@ struct ParentNode : public NodeBase
 	{
 		visitor(*this);
 
-		Foreacher<decltype(children)>::for_each_in_tuple(children, [&](auto& child)
+		children.ForEach([&](auto& child)
 		{
 			child.Visit(visitor);
 		});
@@ -288,7 +268,7 @@ struct ParentNode : public NodeBase
 
 	virtual bool IsAdditional() override
 	{
-		return (std::get<2>(TIds::GetIds()) & 1);
+		return TIds::CId3 & 1;
 	}
 };
 
@@ -339,7 +319,7 @@ struct NodeWrapper : public NodeBase
 
 		auto curBit = state.buffer.GetCurrentBit();
 
-		if (shouldRead(state, TIds::GetIds()))
+		if (shouldRead<TIds>(state))
 		{
 			// read into data array
 			auto length = state.buffer.Read<uint32_t>(13);
@@ -417,13 +397,13 @@ struct NodeWrapper : public NodeBase
 			}
 
 			// if this doesn't need activation flags, don't write it
-			if ((std::get<2>(TIds::GetIds()) & 1) == 0)
+			if ((TIds::CId3 & 1) == 0)
 			{
 				couldWrite = false;
 			}
 		}
 		
-		if (shouldWrite(state, TIds::GetIds(), couldWrite))
+		if (shouldWrite<TIds>(state, couldWrite))
 		{
 			state.buffer.WriteBits(data.data(), length);
 
@@ -442,7 +422,7 @@ struct NodeWrapper : public NodeBase
 
 	virtual bool IsAdditional() override
 	{
-		return (std::get<2>(TIds::GetIds()) & 1);
+		return (TIds::CId3 & 1);
 	}
 };
 
@@ -1234,7 +1214,7 @@ struct CSectorDataNode
 		m_sectorY = sectorY;
 		m_sectorZ = sectorZ;
 
-		state.entity->syncTree->CalculatePosition();
+		(*state.entity->syncTree)->CalculatePosition();
 
 		return true;
 	}
@@ -1265,7 +1245,7 @@ struct CSectorPositionDataNode
 		m_posY = posY;
 		m_posZ = posZ;
 
-		state.entity->syncTree->CalculatePosition();
+		(*state.entity->syncTree)->CalculatePosition();
 
 		return true;
 	}
@@ -1669,7 +1649,7 @@ struct CObjectSectorPosNode
 		m_sectorPosY = posY;
 		m_sectorPosZ = posZ;
 
-		state.entity->syncTree->CalculatePosition();
+		(*state.entity->syncTree)->CalculatePosition();
 
 		return true;
 	}
@@ -1823,7 +1803,7 @@ struct CPedSectorPosMapNode
 		m_sectorPosY = posY;
 		m_sectorPosZ = posZ;
 
-		state.entity->syncTree->CalculatePosition();
+		(*state.entity->syncTree)->CalculatePosition();
 
 		// more data follows
 
@@ -2237,7 +2217,7 @@ struct CPlayerSectorPosNode
 		m_sectorPosY = posY;
 		m_sectorPosZ = posZ;
 
-		state.entity->syncTree->CalculatePosition();
+		(*state.entity->syncTree)->CalculatePosition();
 
 		return true;
 	}
@@ -2357,7 +2337,7 @@ template<typename TNode>
 struct SyncTree : public SyncTreeBase
 {
 	TNode root;
-	std::mutex mutex;
+	std::shared_mutex mutex;
 
 	template<typename TData>
 	inline static constexpr size_t GetOffsetOf()
@@ -2455,7 +2435,7 @@ struct SyncTree : public SyncTreeBase
 
 				if (entity && entity->type != sync::NetObjEntityType::Player)
 				{
-					entity->syncTree->GetPosition(posOut);
+					(*entity->syncTree)->GetPosition(posOut);
 
 					posOut[0] += playerSecPosDataNode->m_standingOffsetX;
 					posOut[1] += playerSecPosDataNode->m_standingOffsetY;
@@ -2473,7 +2453,7 @@ struct SyncTree : public SyncTreeBase
 
 				if (entity && entity->type != fx::sync::NetObjEntityType::Ped && entity->type != fx::sync::NetObjEntityType::Player)
 				{
-					entity->syncTree->GetPosition(posOut);
+					(*entity->syncTree)->GetPosition(posOut);
 				}
 			}
 		}
@@ -2659,7 +2639,7 @@ struct SyncTree : public SyncTreeBase
 		
 	virtual void Parse(SyncParseState& state) final override
 	{
-		std::unique_lock<std::mutex> lock(mutex);
+		std::unique_lock lock(mutex);
 
 		//trace("parsing root\n");
 		state.objType = 0;
@@ -2675,7 +2655,7 @@ struct SyncTree : public SyncTreeBase
 
 	virtual bool Unparse(SyncUnparseState& state) final override
 	{
-		std::unique_lock<std::mutex> lock(mutex);
+		std::shared_lock lock(mutex);
 
 		state.objType = 0;
 
@@ -2691,7 +2671,7 @@ struct SyncTree : public SyncTreeBase
 
 	virtual void Visit(const SyncTreeVisitor& visitor) final override
 	{
-		std::unique_lock<std::mutex> lock(mutex);
+		std::unique_lock lock(mutex);
 
 		root.Visit(visitor);
 	}

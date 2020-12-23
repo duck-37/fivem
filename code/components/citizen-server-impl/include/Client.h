@@ -321,8 +321,7 @@ namespace fx
 		volatile bool m_dropping;
 	};
 
-	inline object_pool<Client, 512 * 1024> clientPool;
-
-	using ClientSharedPtr = shared_reference<Client, &clientPool>;
+	using ClientPoolT = object_pool<Client, 512>;
+	using ClientSharedPtr = shared_reference<Client, ClientPoolT>;
 	using ClientWeakPtr = weak_reference<ClientSharedPtr>;
 }

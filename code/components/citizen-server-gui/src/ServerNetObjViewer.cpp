@@ -41,15 +41,15 @@ static const auto& CollectEntities(fx::ServerInstanceBase* instance)
 				if (entity->syncTree)
 				{
 					float positionFloat[3];
-					entity->syncTree->GetPosition(positionFloat);
+					(*entity->syncTree)->GetPosition(positionFloat);
 
 					position = { positionFloat[0],
 						positionFloat[1],
 						positionFloat[2] };
 
-					entity->syncTree->GetModelHash(&model);
+					(*entity->syncTree)->GetModelHash(&model);
 
-					entity->syncTree->GetPopulationType(&popType);
+					(*entity->syncTree)->GetPopulationType(&popType);
 				}
 
 				entities[ownerName][objectId] = {

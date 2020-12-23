@@ -38,7 +38,7 @@ public:
 
 	}
 
-	inline bool ReadBitsSingle(void* out, int length)
+	inline __forceinline bool ReadBitsSingle(void* out, int length)
 	{
 		if (length == 13 && GetLengthHackState())
 		{
@@ -90,7 +90,7 @@ public:
 	}
 
 
-	inline uint8_t ReadBit()
+	inline __forceinline uint8_t ReadBit()
 	{
 		int startIdx = m_curBit / 8;
 		int shift = (7 - (m_curBit % 8));
@@ -308,7 +308,7 @@ public:
 
 
 	// copied IDA code, please improve!
-	inline bool ReadBits(void* data, int length)
+	inline __forceinline bool ReadBits(void* data, int length)
 	{
 		if (length == 0)
 		{
@@ -331,7 +331,7 @@ public:
 	}
 
 	// copied IDA code, please improve!
-	inline bool WriteBits(const void* data, int length)
+	inline __forceinline bool WriteBits(const void* data, int length)
 	{
 		if ((m_curBit + length) > m_maxBit)
 		{
@@ -405,7 +405,7 @@ public:
 		return true;
 	}
 
-	inline bool WriteBit(uint8_t bit)
+	inline __forceinline bool WriteBit(uint8_t bit)
 	{
 		int startIdx = m_curBit / 8;
 		int shift = (7 - (m_curBit % 8));
@@ -428,7 +428,7 @@ public:
 	}
 
 	template<typename T>
-	inline T Read(int length)
+	inline __forceinline T Read(int length)
 	{
 		static_assert(sizeof(T) <= 4, "maximum of 32 bit read");
 
@@ -440,7 +440,7 @@ public:
 
 
 	template<typename T>
-	inline bool Read(int length, T* out)
+	inline __forceinline bool Read(int length, T* out)
 	{
 		static_assert(sizeof(T) <= 4, "maximum of 32 bit read");
 
@@ -460,7 +460,7 @@ public:
 	}
 
 	template<typename T>
-	inline T ReadSigned(int length)
+	inline __forceinline T ReadSigned(int length)
 	{
 		int sign = Read<int>(1);
 		int data = Read<int>(length - 1);
@@ -469,14 +469,14 @@ public:
 	}
 
 	template<typename T>
-	inline void Write(int length, T data)
+	inline __forceinline void Write(int length, T data)
 	{
 		static_assert(sizeof(T) <= 4, "maximum of 32 bit write");
 
 		WriteBitsSingle(&data, length);
 	}
 
-	inline float ReadFloat(int length, float divisor)
+	inline __forceinline float ReadFloat(int length, float divisor)
 	{
 		auto integer = Read<int>(length);
 
@@ -484,7 +484,7 @@ public:
 		return ((float)integer / max) * divisor;
 	}
 
-	inline void WriteFloat(int length, float divisor, float value)
+	inline __forceinline void WriteFloat(int length, float divisor, float value)
 	{
 		float max = (1 << length) - 1;
 		int integer = (int)((value / divisor) * max);
@@ -492,7 +492,7 @@ public:
 		Write<int>(length, integer);
 	}
 
-	inline float ReadSignedFloat(int length, float divisor)
+	inline __forceinline float ReadSignedFloat(int length, float divisor)
 	{
 		auto integer = ReadSigned<int>(length);
 
@@ -500,7 +500,7 @@ public:
 		return ((float)integer / max) * divisor;
 	}
 
-	inline uint64_t ReadLong(int length)
+	inline __forceinline uint64_t ReadLong(int length)
 	{
 		if (length <= 32)
 		{

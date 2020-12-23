@@ -292,11 +292,11 @@ namespace fx
 
 			using NetBufferSharedPtr = std::shared_ptr<std::vector<uint8_t>>;
 
-			static object_pool<NetBufferSharedPtr> sharedPtrPool;
-			packet->userData = sharedPtrPool.construct(buffer.GetBytes());
+			using PacketPoolT = object_pool<NetBufferSharedPtr>;
+			packet->userData = PacketPoolT::construct(buffer.GetBytes());
 			packet->freeCallback = [](ENetPacket* packet)
 			{
-				sharedPtrPool.destruct((NetBufferSharedPtr*)packet->userData);
+				PacketPoolT::destruct((NetBufferSharedPtr*)packet->userData);
 			};
 			enet_peer_send(peerPair->second, channel, packet);
 		}

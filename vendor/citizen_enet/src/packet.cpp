@@ -23,7 +23,7 @@
 ENetPacket *
 enet_packet_create (const void * data, size_t dataLength, enet_uint32 flags)
 {
-    ENetPacket * packet = fx::generic_object_pool<ENetPacket>::allocate();
+    ENetPacket * packet = fx::object_pool<ENetPacket>::allocate();
     if (packet == NULL)
       return NULL;
 
@@ -37,7 +37,7 @@ enet_packet_create (const void * data, size_t dataLength, enet_uint32 flags)
        packet -> data = (enet_uint8 *) enet_malloc (dataLength);
        if (packet -> data == NULL)
 	   {
-		   fx::generic_object_pool<ENetPacket>::destruct(packet);
+		   fx::object_pool<ENetPacket>::destruct(packet);
           return NULL;
        }
 
@@ -68,7 +68,7 @@ enet_packet_destroy (ENetPacket * packet)
     if (! (packet -> flags & ENET_PACKET_FLAG_NO_ALLOCATE) &&
         packet -> data != NULL)
 		enet_free(packet->data);
-	fx::generic_object_pool<ENetPacket>::destruct(packet);
+	fx::object_pool<ENetPacket>::destruct(packet);
 }
 
 /** Attempts to resize the data in the packet to length specified in the 

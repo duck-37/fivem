@@ -153,14 +153,14 @@ enet_peer_send (ENetPeer * peer, enet_uint8 channelID, ENetPacket * packet)
          if (packet -> dataLength - fragmentOffset < fragmentLength)
            fragmentLength = packet -> dataLength - fragmentOffset;
 
-		 fragment = fx::generic_object_pool<ENetOutgoingCommand>::allocate();
+		 fragment = fx::object_pool<ENetOutgoingCommand>::allocate();
          if (fragment == NULL)
          {
             while (! enet_list_empty (& fragments))
             {
                fragment = (ENetOutgoingCommand *) enet_list_remove (enet_list_begin (& fragments));
 
-			   fx::generic_object_pool<ENetOutgoingCommand>::destruct(fragment);
+			   fx::object_pool<ENetOutgoingCommand>::destruct(fragment);
             }
             
             return -1;
@@ -244,7 +244,7 @@ enet_peer_receive (ENetPeer * peer, enet_uint8 * channelID)
    if (incomingCommand -> fragments != NULL)
      enet_free (incomingCommand -> fragments);
 
-   fx::generic_object_pool<ENetIncomingCommand>::destruct(incomingCommand);
+   fx::object_pool<ENetIncomingCommand>::destruct(incomingCommand);
 
    peer -> totalWaitingData -= packet -> dataLength;
 
@@ -268,7 +268,7 @@ enet_peer_reset_outgoing_commands (ENetList * queue)
             enet_packet_destroy (outgoingCommand -> packet);
        }
 
-	   fx::generic_object_pool<ENetOutgoingCommand>::destruct(outgoingCommand);
+	   fx::object_pool<ENetOutgoingCommand>::destruct(outgoingCommand);
     }
 }
 
@@ -299,7 +299,7 @@ enet_peer_remove_incoming_commands (ENetList * queue, ENetListIterator startComm
        if (incomingCommand -> fragments != NULL)
          enet_free (incomingCommand -> fragments);
 
-	   fx::generic_object_pool<ENetIncomingCommand>::destruct(incomingCommand);
+	   fx::object_pool<ENetIncomingCommand>::destruct(incomingCommand);
     }
 }
 
@@ -322,7 +322,7 @@ enet_peer_reset_queues (ENetPeer * peer)
     }
 
 	while (!enet_list_empty(&peer->acknowledgements))
-		fx::generic_object_pool<ENetAcknowledgement>::destruct((ENetAcknowledgement*)enet_list_remove(enet_list_begin(&peer->acknowledgements)));
+		fx::object_pool<ENetAcknowledgement>::destruct((ENetAcknowledgement*)enet_list_remove(enet_list_begin(&peer->acknowledgements)));
 
     enet_peer_reset_outgoing_commands (& peer -> sentReliableCommands);
     enet_peer_reset_outgoing_commands (& peer -> sentUnreliableCommands);
@@ -610,7 +610,7 @@ enet_peer_queue_acknowledgement (ENetPeer * peer, const ENetProtocol * command, 
           return NULL;
     }
 
-	acknowledgement = (ENetAcknowledgement*)fx::generic_object_pool<ENetAcknowledgement>::allocate();
+	acknowledgement = (ENetAcknowledgement*)fx::object_pool<ENetAcknowledgement>::allocate();
     if (acknowledgement == NULL)
       return NULL;
 
@@ -693,7 +693,7 @@ enet_peer_setup_outgoing_command (ENetPeer * peer, ENetOutgoingCommand * outgoin
 ENetOutgoingCommand *
 enet_peer_queue_outgoing_command (ENetPeer * peer, const ENetProtocol * command, ENetPacket * packet, enet_uint32 offset, enet_uint16 length)
 {
-	ENetOutgoingCommand* outgoingCommand = fx::generic_object_pool<ENetOutgoingCommand>::allocate();
+	ENetOutgoingCommand* outgoingCommand = fx::object_pool<ENetOutgoingCommand>::allocate();
     if (outgoingCommand == NULL)
       return NULL;
 
@@ -948,7 +948,7 @@ enet_peer_queue_incoming_command (ENetPeer * peer, const ENetProtocol * command,
     if (packet == NULL)
       goto notifyError;
 
-	incomingCommand = fx::generic_object_pool<ENetIncomingCommand>::allocate();
+	incomingCommand = fx::object_pool<ENetIncomingCommand>::allocate();
     if (incomingCommand == NULL)
       goto notifyError;
 
@@ -966,7 +966,7 @@ enet_peer_queue_incoming_command (ENetPeer * peer, const ENetProtocol * command,
          incomingCommand -> fragments = (enet_uint32 *) enet_malloc ((fragmentCount + 31) / 32 * sizeof (enet_uint32));
        if (incomingCommand -> fragments == NULL)
 	   {
-		  fx::generic_object_pool<ENetIncomingCommand>::destruct(incomingCommand);
+		  fx::object_pool<ENetIncomingCommand>::destruct(incomingCommand);
           goto notifyError;
        }
        memset (incomingCommand -> fragments, 0, (fragmentCount + 31) / 32 * sizeof (enet_uint32));

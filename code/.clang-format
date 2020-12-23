@@ -3,7 +3,7 @@ AlignOperands: true
 
 # until LLVM 11 this doesn't include `BeforeLambdaBody: true`, which is a bit nasty
 BraceWrapping:
-  BeforeLambdaBody: true
+  # BeforeLambdaBody: true
   AfterControlStatement: true
   AfterFunction: true
   AfterNamespace: true
@@ -37,7 +37,7 @@ BinPackParameters: true
 
 AlignAfterOpenBracket: DontAlign
 
-IndentCaseBlocks: false
+# IndentCaseBlocks: false
 IndentCaseLabels: true
 NamespaceIndentation: Inner
 

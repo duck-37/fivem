@@ -23,9 +23,9 @@ void UnparseTo(TNode& node, TWrapper wrapper)
 	wrapper->node = node;
 }
 
-std::shared_ptr<sync::SyncTreeBase> MakeAutomobile(uint32_t model, float posX, float posY, float posZ, uint32_t resourceHash)
+std::shared_ptr<sync::SyncTreeImplBase> MakeAutomobile(uint32_t model, float posX, float posY, float posZ, uint32_t resourceHash)
 {
-	auto tree = std::make_shared<sync::CAutomobileSyncTree>();
+	auto tree = std::make_shared<sync::SyncTreeImpl<sync::CAutomobileSyncTree>>();
 	
 	{
 		auto n = tree->GetNode<sync::CVehicleCreationDataNode>();
@@ -102,38 +102,38 @@ std::shared_ptr<sync::SyncTreeBase> MakeAutomobile(uint32_t model, float posX, f
 }
 
 template<typename TNode>
-auto GetNode(sync::NetObjEntityType objectType, const std::shared_ptr<sync::SyncTreeBase>& tree)
+auto GetNode(sync::NetObjEntityType objectType, const std::shared_ptr<sync::SyncTreeImplBase>& tree)
 {
 	switch (objectType)
 	{
 		case sync::NetObjEntityType::Automobile:
-			return std::static_pointer_cast<sync::CAutomobileSyncTree>(tree)->GetNode<TNode>();
+			return std::static_pointer_cast<sync::SyncTreeImpl<sync::CAutomobileSyncTree>>(tree)->GetNode<TNode>();
 		case sync::NetObjEntityType::Bike:
-			return std::static_pointer_cast<sync::CBikeSyncTree>(tree)->GetNode<TNode>();
+			return std::static_pointer_cast<sync::SyncTreeImpl<sync::CBikeSyncTree>>(tree)->GetNode<TNode>();
 		case sync::NetObjEntityType::Boat:
-			return std::static_pointer_cast<sync::CBoatSyncTree>(tree)->GetNode<TNode>();
+			return std::static_pointer_cast<sync::SyncTreeImpl<sync::CBoatSyncTree>>(tree)->GetNode<TNode>();
 		case sync::NetObjEntityType::Door:
-			return std::static_pointer_cast<sync::CDoorSyncTree>(tree)->GetNode<TNode>();
+			return std::static_pointer_cast<sync::SyncTreeImpl<sync::CDoorSyncTree>>(tree)->GetNode<TNode>();
 		case sync::NetObjEntityType::Heli:
-			return std::static_pointer_cast<sync::CHeliSyncTree>(tree)->GetNode<TNode>();
+			return std::static_pointer_cast<sync::SyncTreeImpl<sync::CHeliSyncTree>>(tree)->GetNode<TNode>();
 		case sync::NetObjEntityType::Object:
-			return std::static_pointer_cast<sync::CObjectSyncTree>(tree)->GetNode<TNode>();
+			return std::static_pointer_cast<sync::SyncTreeImpl<sync::CObjectSyncTree>>(tree)->GetNode<TNode>();
 		case sync::NetObjEntityType::Ped:
-			return std::static_pointer_cast<sync::CPedSyncTree>(tree)->GetNode<TNode>();
+			return std::static_pointer_cast<sync::SyncTreeImpl<sync::CPedSyncTree>>(tree)->GetNode<TNode>();
 		case sync::NetObjEntityType::Pickup:
-			return std::static_pointer_cast<sync::CPickupSyncTree>(tree)->GetNode<TNode>();
+			return std::static_pointer_cast<sync::SyncTreeImpl<sync::CPickupSyncTree>>(tree)->GetNode<TNode>();
 		case sync::NetObjEntityType::PickupPlacement:
-			return std::static_pointer_cast<sync::CPickupPlacementSyncTree>(tree)->GetNode<TNode>();
+			return std::static_pointer_cast<sync::SyncTreeImpl<sync::CPickupPlacementSyncTree>>(tree)->GetNode<TNode>();
 		case sync::NetObjEntityType::Plane:
-			return std::static_pointer_cast<sync::CPlaneSyncTree>(tree)->GetNode<TNode>();
+			return std::static_pointer_cast<sync::SyncTreeImpl<sync::CPlaneSyncTree>>(tree)->GetNode<TNode>();
 		case sync::NetObjEntityType::Submarine:
-			return std::static_pointer_cast<sync::CSubmarineSyncTree>(tree)->GetNode<TNode>();
+			return std::static_pointer_cast<sync::SyncTreeImpl<sync::CSubmarineSyncTree>>(tree)->GetNode<TNode>();
 		case sync::NetObjEntityType::Player:
-			return std::static_pointer_cast<sync::CPlayerSyncTree>(tree)->GetNode<TNode>();
+			return std::static_pointer_cast<sync::SyncTreeImpl<sync::CPlayerSyncTree>>(tree)->GetNode<TNode>();
 		case sync::NetObjEntityType::Trailer:
-			return std::static_pointer_cast<sync::CAutomobileSyncTree>(tree)->GetNode<TNode>();
+			return std::static_pointer_cast<sync::SyncTreeImpl<sync::CAutomobileSyncTree>>(tree)->GetNode<TNode>();
 		case sync::NetObjEntityType::Train:
-			return std::static_pointer_cast<sync::CTrainSyncTree>(tree)->GetNode<TNode>();
+			return std::static_pointer_cast<sync::SyncTreeImpl<sync::CTrainSyncTree>>(tree)->GetNode<TNode>();
 	}
 
 	assert(!"Invalid object type!");
